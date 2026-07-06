@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FallEcho · content-addressed page archiver</title>
+<meta name="description" content="Pin any web page. Snapshot to a single self-contained HTML. Hash to a CID. Broadcast on the peer mesh with a signed attestation. The web should remember itself.">
+<meta name="author" content="AI-Native Solutions">
+<meta name="theme-color" content="#1a1a1e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a1a1e'/%3E%3Ctext x='16' y='22' font-family='serif' font-size='18' fill='%237a9c7e' text-anchor='middle'%3E%E2%97%8A%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--void:#1a1a1e;--deep:#212127;--surface:#2a2a30;--raised:#33333a;--line:rgba(232,228,219,0.08);--line2:rgba(232,228,219,0.16);--text:#e8e4db;--muted:#928d80;--dim:#6b6660;--sage:#7a9c7e;--sage-dim:rgba(122,156,126,0.14);--amber:#d4a052;--amber-dim:rgba(212,160,82,0.12);--coral:#d67a5a;--coral-glow:rgba(214,122,90,0.15);--serif:'Cormorant Garamond','Iowan Old Style',Georgia,serif;--sans:'Inter',-apple-system,system-ui,sans-serif;--mono:'JetBrains Mono','IBM Plex Mono',monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--void);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,textarea{font-family:inherit;background:transparent;color:var(--text);border:none;outline:none;width:100%}
+h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--text);line-height:1.2}
+h1{font-size:34px;letter-spacing:0.01em;margin-bottom:8px}
+h1 em{color:var(--sage);font-style:italic}
+h2{font-size:22px;color:var(--text);margin-bottom:10px}
+h2 em{color:var(--sage);font-style:italic}
+h3{font-size:14px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.14em;font-family:var(--mono);font-weight:500}
+a{color:var(--sage);text-decoration:none}
+a:hover{text-decoration:underline}
+.app{display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+.topbar{background:rgba(26,26,30,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50;flex-wrap:wrap;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:22px;color:var(--text)}
+.brand .glyph{color:var(--sage);font-size:22px}
+.brand .co{color:var(--dim);font-family:var(--mono);font-size:9.5px;letter-spacing:0.16em;margin-left:6px;text-transform:uppercase}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{background:transparent;color:var(--muted);padding:8px 14px;border-radius:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.on{background:var(--sage-dim);color:var(--sage)}
+.status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.dot.on{background:var(--sage);box-shadow:0 0 8px var(--sage)}
+main{padding:24px;max-width:960px;margin:0 auto;width:100%}
+.view{display:none}
+.view.on{display:block}
+.card{background:var(--deep);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+.card p{color:var(--muted);margin-bottom:12px}
+.card .hint{color:var(--muted);font-size:12.5px;font-style:italic;margin-top:8px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)}
+.field input,.field textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 14px;font-size:14px;font-family:var(--mono)}
+.field input:focus,.field textarea:focus{border-color:var(--sage)}
+.field textarea{min-height:120px;resize:vertical;line-height:1.5}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{background:var(--sage);color:var(--void);padding:12px 22px;border-radius:8px;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700}
+.btn:hover{background:#8db091}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line2)}
+.btn.ghost:hover{border-color:var(--sage);color:var(--sage);background:transparent}
+.btn.amber{background:var(--amber);color:var(--void)}
+.btn.amber:hover{background:#e0b06a}
+.btn.coral{background:transparent;color:var(--coral);border:1px solid var(--coral)}
+.btn.small{padding:7px 12px;font-size:10px}
+.log{background:var(--void);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11.5px;color:var(--muted);max-height:180px;overflow-y:auto;margin-top:12px;line-height:1.55}
+.log .l{padding:2px 0}
+.log .l.ok{color:var(--sage)}
+.log .l.err{color:var(--coral)}
+.log .l.warn{color:var(--amber)}
+.result{margin-top:14px;padding:14px 16px;background:var(--surface);border-radius:8px;border-left:3px solid var(--sage);font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-all;line-height:1.6}
+.result .cid{color:var(--sage);font-weight:600}
+.result .label{color:var(--muted);text-transform:uppercase;letter-spacing:0.14em;font-size:9.5px;margin-right:8px}
+.item{background:var(--deep);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:10px;transition:border-color .15s}
+.item:hover{border-color:var(--sage-dim)}
+.item .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.item .url{color:var(--text);font-size:14px;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:500}
+.item .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:0.06em;display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+.item .cid{font-family:var(--mono);font-size:11px;color:var(--sage);word-break:break-all;margin-top:4px}
+.item .actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.item .tag{display:inline-block;padding:2px 8px;background:var(--sage-dim);color:var(--sage);border-radius:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase}
+.item .tag.amber{background:var(--amber-dim);color:var(--amber)}
+.empty{padding:32px 20px;text-align:center;color:var(--muted);font-style:italic;font-family:var(--serif);font-size:17px}
+.viewer{width:100%;height:70vh;background:var(--void);border:1px solid var(--line);border-radius:10px;margin-top:12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--surface);border-radius:10px;padding:14px 16px;border:1px solid var(--line)}
+.stat .n{font-family:var(--serif);font-size:26px;color:var(--sage);line-height:1;font-style:italic}
+.stat .k{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.14em;text-transform:uppercase;margin-top:6px}
+.hero{margin-bottom:20px}
+.hero p{color:var(--muted);font-size:15.5px;max-width:640px;line-height:1.7}
+.pill{display:inline-block;padding:3px 10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-family:var(--mono);font-size:9.5px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;margin-right:6px}
+.pill.sage{background:var(--sage-dim);color:var(--sage);border-color:transparent}
+.pill.amber{background:var(--amber-dim);color:var(--amber);border-color:transparent}
+.divider{height:1px;background:var(--line);margin:16px 0}
+details{margin-top:10px}
+summary{cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;padding:6px 0}
+summary:hover{color:var(--sage)}
+details[open] summary{color:var(--sage)}
+.sig{font-family:var(--mono);font-size:11px;background:var(--void);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-top:8px;color:var(--muted);word-break:break-all;line-height:1.55}
+.sig .k{color:var(--amber);margin-right:6px}
+footer{text-align:center;padding:32px 20px;color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:0.1em}
+footer a{color:var(--muted)}
+@media(max-width:640px){.topbar{padding:12px 16px}main{padding:16px}h1{font-size:26px}h2{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="glyph">◊</span>FallEcho<span class="co">AI-NATIVE SOLUTIONS</span></div>
+    <div class="tabs">
+      <button class="tab on" data-view="archive">Archive</button>
+      <button class="tab" data-view="retrieve">Retrieve</button>
+      <button class="tab" data-view="mesh">Mesh</button>
+      <button class="tab" data-view="pinned">Pinned</button>
+      <button class="tab" data-view="about">About</button>
+    </div>
+    <div class="status"><span class="dot" id="meshDot"></span><span id="meshStat">mesh offline</span></div>
+  </div>
+  <main>
+    <section class="view on" data-view="archive">
+      <div class="hero">
+        <h1>Archive a page. <em>Forever.</em></h1>
+        <p>Give a URL. FallEcho snapshots the page into a single self-contained HTML, hashes it into a content-address, and broadcasts the CID to peers on the mesh with a signed attestation. Anyone can retrieve the exact bytes by CID. No central server. No takedown. The web remembers itself.</p>
+      </div>
+      <div class="card">
+        <h2>New <em>snapshot</em></h2>
+        <div class="field">
+          <label>URL to archive</label>
+          <input type="url" id="urlIn" placeholder="https://example.com/article" autocomplete="off">
+        </div>
+        <div class="row">
+          <button class="btn" id="doFetch">Fetch and snapshot</button>
+          <button class="btn ghost" id="pasteMode">Paste HTML instead</button>
+        </div>
+        <p class="hint">Cross-origin fetches often fail due to CORS. If the fetch is blocked, use paste mode: open the page in another tab, view source, paste it here — you keep the same signed provenance.</p>
+        <div id="pasteBox" style="display:none;margin-top:14px">
+          <div class="field">
+            <label>Paste page HTML</label>
+            <textarea id="htmlIn" placeholder="&lt;!doctype html&gt;..."></textarea>
+          </div>
+          <button class="btn amber" id="doPaste">Snapshot pasted HTML</button>
+        </div>
+        <div class="log" id="archLog" style="display:none"></div>
+        <div id="archResult"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="retrieve">
+      <div class="hero">
+        <h1>Retrieve by <em>CID</em></h1>
+        <p>Enter a content-address. FallEcho checks your local store first, then queries mesh peers. Every byte is hash-verified before it renders — the CID guarantees exact bytes.</p>
+      </div>
+      <div class="card">
+        <h2>Fetch a <em>snapshot</em></h2>
+        <div class="field">
+          <label>CID (sha256:...)</label>
+          <input type="text" id="cidIn" placeholder="sha256:abcdef...">
+        </div>
+        <div class="row">
+          <button class="btn" id="doRetrieve">Retrieve</button>
+          <button class="btn ghost" id="queryPeers">Query peers</button>
+        </div>
+        <div class="log" id="retLog" style="display:none"></div>
+        <div id="retResult"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="mesh">
+      <div class="hero">
+        <h1>Browse the <em>mesh</em></h1>
+        <p>Live broadcasts from peers. Every entry is a signed attestation: someone on the mesh archived this URL at this time with this DID. Click retrieve to pull the bytes.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="n" id="statPeers">0</div><div class="k">peers</div></div>
+        <div class="stat"><div class="n" id="statSeen">0</div><div class="k">seen</div></div>
+        <div class="stat"><div class="n" id="statLocal">0</div><div class="k">local</div></div>
+        <div class="stat"><div class="n" id="statPinned">0</div><div class="k">pinned</div></div>
+      </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn" id="startMesh">Start mesh</button>
+          <button class="btn ghost" id="stopMesh">Stop</button>
+          <button class="btn ghost small" id="offerBtn">Manual offer</button>
+          <button class="btn ghost small" id="acceptBtn">Accept offer</button>
+        </div>
+        <div id="meshBox" style="display:none;margin-top:8px">
+          <div class="field"><label>Bundle (paste offer/answer here)</label><textarea id="bundleIn" placeholder="paste bundle..."></textarea></div>
+          <button class="btn amber small" id="genOffer">Generate offer</button>
+          <button class="btn amber small" id="acceptOffer">Accept offer bundle</button>
+          <button class="btn amber small" id="acceptAnswer">Accept answer bundle</button>
+          <div id="bundleOut" class="sig" style="display:none;margin-top:10px"></div>
+        </div>
+      </div>
+      <h3>Recent broadcasts</h3>
+      <div id="meshList"><div class="empty">No broadcasts yet. Start the mesh to listen.</div></div>
+    </section>
+
+    <section class="view" data-view="pinned">
+      <div class="hero">
+        <h1>Your <em>pins</em></h1>
+        <p>Locally-pinned snapshots. FallStore never garbage-collects pinned CIDs. Unpin to release; the bytes stay until the next sweep.</p>
+      </div>
+      <div id="pinList"><div class="empty">Loading...</div></div>
+    </section>
+
+    <section class="view" data-view="about">
+      <div class="hero">
+        <h1>The web should <em>remember itself</em></h1>
+        <p>FallEcho is a content-addressed page archiver. Every snapshot is a single self-contained HTML file, hashed with SHA-256 into a stable CID. Retrieval verifies bytes against the address, so no peer can lie about what they served.</p>
+        <p>Attestations are signed with an in-browser Ed25519 keypair (your DID lives in localStorage — export it in Retrieve mode by pasting your own CID). Sovereign, no central server, MIT.</p>
+      </div>
+      <div class="card">
+        <h3>Primitives used</h3>
+        <p><span class="pill sage">FallStore</span> <span class="pill sage">FallLink</span> <span class="pill amber">FallSignature (inline)</span></p>
+        <div class="divider"></div>
+        <h3>Honest limits</h3>
+        <p>Cross-origin fetch is blocked by browsers unless the target site sends CORS headers. For arbitrary pages, use paste mode: open the source in another tab and paste it. That's not a workaround — the resulting CID and attestation are as trustworthy as any auto-fetch.</p>
+        <div class="divider"></div>
+        <h3>Your DID</h3>
+        <div class="sig" id="didBox">loading...</div>
+        <details><summary>Export keypair</summary><div class="sig" id="kpBox">loading...</div></details>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import * as FS from 'https://sjgant80-hub.github.io/fallstore/fallstore.js';
+import { FallLink } from 'https://sjgant80-hub.github.io/falllink/falllink.js';
+
+// ---------- state ----------
+const state = { link:null, peers:0, seen:new Map(), mode:'fetch', keypair:null, did:null };
+
+// ---------- utility ----------
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const short = c => c ? c.slice(0,15)+'…'+c.slice(-8) : '';
+const bytes = n => n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(2)+' MB';
+const when = t => { const d=Date.now()-t; if(d<60000) return 'just now'; if(d<3600000) return Math.floor(d/60000)+'m ago'; if(d<86400000) return Math.floor(d/3600000)+'h ago'; return new Date(t).toLocaleDateString(); };
+
+function log(id, msg, cls){
+  const box = $('#'+id); box.style.display='block';
+  const l = document.createElement('div'); l.className='l '+(cls||''); l.textContent = '› '+msg;
+  box.appendChild(l); box.scrollTop = box.scrollHeight;
+}
+
+// ---------- tabs ----------
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  const v = t.dataset.view;
+  $$('.tab').forEach(x => x.classList.toggle('on', x===t));
+  $$('.view').forEach(x => x.classList.toggle('on', x.dataset.view===v));
+  if (v==='mesh') renderMesh();
+  if (v==='pinned') renderPins();
+  if (v==='about') showDid();
+}));
+
+// ---------- Ed25519 keypair (in-browser signing) ----------
+async function initKeys(){
+  const stored = localStorage.getItem('fallecho-kp');
+  if (stored){
+    try {
+      const j = JSON.parse(stored);
+      const pub = await crypto.subtle.importKey('jwk', j.pub, {name:'Ed25519'}, true, ['verify']);
+      const prv = await crypto.subtle.importKey('jwk', j.prv, {name:'Ed25519'}, true, ['sign']);
+      state.keypair = { publicKey: pub, privateKey: prv, pubJwk: j.pub, prvJwk: j.prv };
+    } catch(e){ localStorage.removeItem('fallecho-kp'); }
+  }
+  if (!state.keypair){
+    try {
+      const kp = await crypto.subtle.generateKey({name:'Ed25519'}, true, ['sign','verify']);
+      const pubJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+      const prvJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+      localStorage.setItem('fallecho-kp', JSON.stringify({pub:pubJwk, prv:prvJwk}));
+      state.keypair = { publicKey: kp.publicKey, privateKey: kp.privateKey, pubJwk, prvJwk };
+    } catch(e){
+      // Ed25519 not supported — fall back to ECDSA P-256
+      const kp = await crypto.subtle.generateKey({name:'ECDSA', namedCurve:'P-256'}, true, ['sign','verify']);
+      const pubJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+      const prvJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+      localStorage.setItem('fallecho-kp', JSON.stringify({pub:pubJwk, prv:prvJwk, alg:'ecdsa'}));
+      state.keypair = { publicKey: kp.publicKey, privateKey: kp.privateKey, pubJwk, prvJwk, alg:'ecdsa' };
+    }
+  }
+  // DID = base32 of pubkey hash
+  const pubBytes = new TextEncoder().encode(JSON.stringify(state.keypair.pubJwk));
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', pubBytes));
+  state.did = 'did:fall:' + b32(h).slice(0,26);
+}
+
+function b32(bytes){
+  const A='abcdefghijklmnopqrstuvwxyz234567'; let bits=0,v=0,o='';
+  for (const b of bytes){ v=(v<<8)|b; bits+=8; while(bits>=5){o+=A[(v>>>(bits-5))&31]; bits-=5;} }
+  if (bits>0) o+=A[(v<<(5-bits))&31]; return o;
+}
+
+async function signAttestation(cid, url){
+  const att = { cid, url, archivedAt: Date.now(), archiverDid: state.did };
+  const msg = new TextEncoder().encode(JSON.stringify(att));
+  const alg = state.keypair.alg === 'ecdsa' ? {name:'ECDSA', hash:'SHA-256'} : {name:'Ed25519'};
+  const sig = await crypto.subtle.sign(alg, state.keypair.privateKey, msg);
+  att.signature = b32(new Uint8Array(sig));
+  att.pubJwk = state.keypair.pubJwk;
+  att.alg = state.keypair.alg || 'ed25519';
+  return att;
+}
+
+async function verifyAttestation(att){
+  if (!att || !att.signature || !att.pubJwk) return false;
+  try {
+    const alg = att.alg === 'ecdsa' ? {name:'ECDSA', hash:'SHA-256'} : {name:'Ed25519'};
+    const pub = await crypto.subtle.importKey('jwk', att.pubJwk, alg.name==='Ed25519'?{name:'Ed25519'}:{name:'ECDSA', namedCurve:'P-256'}, true, ['verify']);
+    const {signature, pubJwk, alg:a, ...rest} = att;
+    const msg = new TextEncoder().encode(JSON.stringify(rest));
+    // reverse b32
+    const A='abcdefghijklmnopqrstuvwxyz234567'; let bits=0,v=0; const out=[];
+    for (const c of signature){ const i=A.indexOf(c); if(i<0) return false; v=(v<<5)|i; bits+=5; if(bits>=8){out.push((v>>>(bits-8))&255); bits-=8;} }
+    return await crypto.subtle.verify(alg, pub, new Uint8Array(out), msg);
+  } catch(e){ return false; }
+}
+
+function showDid(){
+  if (!state.did) return;
+  $('#didBox').textContent = state.did;
+  $('#kpBox').textContent = JSON.stringify({did:state.did, pub:state.keypair.pubJwk, prv:state.keypair.prvJwk}, null, 2);
+}
+
+// ---------- snapshot: inline everything ----------
+async function snapshotHtml(rawHtml, baseUrl){
+  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+  const base = baseUrl ? new URL(baseUrl) : null;
+  const abs = (u) => { try { return base ? new URL(u, base).href : u; } catch { return u; } };
+
+  // Inline stylesheets
+  const links = [...doc.querySelectorAll('link[rel="stylesheet"]')];
+  for (const l of links){
+    const href = l.getAttribute('href'); if (!href) continue;
+    try {
+      const r = await fetch(abs(href), {mode:'cors'});
+      if (r.ok){
+        const css = await r.text();
+        const s = doc.createElement('style'); s.textContent = css;
+        l.replaceWith(s);
+      }
+    } catch(e){ /* leave the link, will 404 offline but at least captured */ }
+  }
+  // Inline images
+  const imgs = [...doc.querySelectorAll('img[src]')];
+  for (const im of imgs){
+    const src = im.getAttribute('src'); if (!src || src.startsWith('data:')) continue;
+    try {
+      const r = await fetch(abs(src), {mode:'cors'});
+      if (r.ok){
+        const b = await r.blob();
+        if (b.size < 4*1048576){ // 4MB cap per image
+          const d = await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(b); });
+          im.setAttribute('src', d);
+        }
+      }
+    } catch(e){}
+  }
+  // Strip scripts (safety + reproducibility)
+  doc.querySelectorAll('script').forEach(s => s.remove());
+  // Add base tag with original URL for reference
+  if (baseUrl){
+    const meta = doc.createElement('meta');
+    meta.setAttribute('name','fallecho:origin');
+    meta.setAttribute('content', baseUrl);
+    doc.head.prepend(meta);
+  }
+  const stamp = doc.createElement('meta');
+  stamp.setAttribute('name','fallecho:archivedAt');
+  stamp.setAttribute('content', String(Date.now()));
+  doc.head.prepend(stamp);
+  return '<!doctype html>\n' + doc.documentElement.outerHTML;
+}
+
+// ---------- archive flow ----------
+async function archiveHtml(html, url){
+  log('archLog', 'inlining assets…');
+  const snap = await snapshotHtml(html, url);
+  log('archLog', 'snapshot '+bytes(snap.length));
+  const cid = await FS.store(snap);
+  log('archLog', 'stored '+short(cid), 'ok');
+  const att = await signAttestation(cid, url || '(pasted)');
+  await FS.store(JSON.stringify(att)); // attestation blob stored too
+  log('archLog', 'attestation signed', 'ok');
+  // Save attestation index in localStorage (light metadata cache)
+  saveAttestation(att);
+  if (state.link){
+    const sent = state.link.broadcast({__fe:'attest', att});
+    log('archLog', 'broadcast to '+sent+' peers', sent?'ok':'warn');
+  } else {
+    log('archLog', 'mesh offline — attestation local only', 'warn');
+  }
+  renderArchResult(att, snap.length);
+  updateStats();
+}
+
+function saveAttestation(att){
+  const list = JSON.parse(localStorage.getItem('fallecho-atts') || '[]');
+  if (!list.find(a => a.cid === att.cid)) { list.unshift(att); localStorage.setItem('fallecho-atts', JSON.stringify(list.slice(0, 500))); }
+}
+
+function loadAttestations(){ return JSON.parse(localStorage.getItem('fallecho-atts') || '[]'); }
+
+function renderArchResult(att, size){
+  $('#archResult').innerHTML = `
+    <div class="result">
+      <div><span class="label">CID</span><span class="cid">${esc(att.cid)}</span></div>
+      <div style="margin-top:6px"><span class="label">URL</span>${esc(att.url)}</div>
+      <div style="margin-top:6px"><span class="label">Size</span>${bytes(size)} <span class="label" style="margin-left:12px">Time</span>${new Date(att.archivedAt).toLocaleString()}</div>
+      <div style="margin-top:6px"><span class="label">Archiver</span>${esc(att.archiverDid)}</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn small" data-view-cid="${esc(att.cid)}">View snapshot</button>
+        <button class="btn ghost small" data-pin-cid="${esc(att.cid)}">Pin</button>
+        <button class="btn ghost small" data-copy="${esc(att.cid)}">Copy CID</button>
+      </div>
+    </div>`;
+  wireResultButtons();
+}
+
+function wireResultButtons(){
+  $$('[data-view-cid]').forEach(b => b.onclick = () => { $('#cidIn').value = b.dataset.viewCid; document.querySelector('.tab[data-view="retrieve"]').click(); doRetrieveNow(); });
+  $$('[data-pin-cid]').forEach(b => b.onclick = async () => { await FS.pin(b.dataset.pinCid); b.textContent = 'Pinned'; b.disabled = true; updateStats(); });
+  $$('[data-copy]').forEach(b => b.onclick = async () => { await navigator.clipboard.writeText(b.dataset.copy); const t=b.textContent; b.textContent='Copied'; setTimeout(()=>b.textContent=t,1200); });
+}
+
+// ---------- retrieve flow ----------
+async function doRetrieveNow(){
+  const cid = $('#cidIn').value.trim();
+  if (!cid) return;
+  $('#retLog').innerHTML=''; $('#retResult').innerHTML='';
+  log('retLog', 'looking up '+short(cid));
+  let bytes_ = await FS.retrieve(cid);
+  if (bytes_) log('retLog','found local ('+bytes(bytes_.byteLength)+')','ok');
+  else {
+    log('retLog','not local — querying peers…','warn');
+    if (state.link) {
+      const sent = state.link.broadcast({__fe:'want', cid});
+      log('retLog','queried '+sent+' peers, awaiting response', sent?'ok':'err');
+      // wait 6s for response
+      bytes_ = await new Promise(res => {
+        const to = setTimeout(()=>res(null), 6000);
+        state._wantCb = async (data) => { clearTimeout(to); res(await FS.retrieve(cid)); };
+      });
+    }
+  }
+  if (!bytes_){ log('retLog','not found','err'); return; }
+  // verify
+  const check = await FS.computeCID(bytes_);
+  if (check !== cid){ log('retLog','CID mismatch! bytes not trustworthy','err'); return; }
+  log('retLog','CID verified ✓','ok');
+  const html = new TextDecoder().decode(bytes_);
+  // Look up attestation
+  const atts = loadAttestations();
+  const att = atts.find(a => a.cid === cid);
+  const verified = att ? await verifyAttestation(att) : null;
+  renderRetrieveResult(cid, html, att, verified, bytes_.byteLength);
+}
+
+function renderRetrieveResult(cid, html, att, verified, size){
+  const attHtml = att ? `
+    <div class="sig">
+      <div><span class="k">URL</span>${esc(att.url)}</div>
+      <div><span class="k">Archived</span>${new Date(att.archivedAt).toLocaleString()}</div>
+      <div><span class="k">DID</span>${esc(att.archiverDid)}</div>
+      <div><span class="k">Signature</span>${verified ? '<span style="color:var(--sage)">verified ✓</span>' : '<span style="color:var(--coral)">unverified</span>'}</div>
+    </div>` : '<div class="sig" style="color:var(--muted)">no attestation on file</div>';
+  const blob = new Blob([html], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  $('#retResult').innerHTML = `
+    <div class="result">
+      <div><span class="label">CID</span><span class="cid">${esc(cid)}</span></div>
+      <div style="margin-top:6px"><span class="label">Size</span>${bytes(size)}</div>
+    </div>
+    <h3 style="margin-top:16px">Attestation</h3>
+    ${attHtml}
+    <h3 style="margin-top:16px">Snapshot</h3>
+    <iframe class="viewer" sandbox="allow-same-origin" src="${url}"></iframe>
+    <div class="row" style="margin-top:10px">
+      <a class="btn small" href="${url}" download="snapshot-${cid.slice(7,15)}.html">Download</a>
+      <button class="btn ghost small" data-pin-cid="${esc(cid)}">Pin</button>
+    </div>`;
+  wireResultButtons();
+}
+
+// ---------- mesh ----------
+async function startMesh(){
+  if (state.link) return;
+  const l = new FallLink({ ownId: state.did });
+  l.on('peer', () => { state.peers = l.getPeers().length; updateMeshUi(); });
+  l.on('disconnect', () => { state.peers = l.getPeers().length; updateMeshUi(); });
+  l.on('message', async ({data, wrapper}) => {
+    if (!data || typeof data !== 'object') return;
+    if (data.__fe === 'attest' && data.att){
+      const att = data.att;
+      if (!state.seen.has(att.cid)){
+        state.seen.set(att.cid, att);
+        saveAttestation(att);
+        renderMesh(); updateStats();
+      }
+    } else if (data.__fe === 'want' && data.cid){
+      const b = await FS.retrieve(data.cid);
+      if (b){
+        // chunked send (WebRTC DC has 16KB safe limit)
+        const total = b.byteLength;
+        wrapper.send({__fe:'have', cid:data.cid, total});
+        const CH = 12000;
+        for (let i=0;i<total;i+=CH){
+          const slice = b.subarray(i, Math.min(i+CH,total));
+          const b64 = btoa(String.fromCharCode(...slice));
+          wrapper.send({__fe:'chunk', cid:data.cid, off:i, b64});
+        }
+        wrapper.send({__fe:'done', cid:data.cid});
+      }
+    } else if (data.__fe === 'have' && data.cid){
+      state._incoming = state._incoming || {};
+      state._incoming[data.cid] = { total: data.total, parts: {} };
+    } else if (data.__fe === 'chunk' && data.cid){
+      const inc = state._incoming && state._incoming[data.cid];
+      if (!inc) return;
+      const bin = atob(data.b64); const u = new Uint8Array(bin.length);
+      for (let i=0;i<bin.length;i++) u[i] = bin.charCodeAt(i);
+      inc.parts[data.off] = u;
+    } else if (data.__fe === 'done' && data.cid){
+      const inc = state._incoming && state._incoming[data.cid];
+      if (!inc) return;
+      const buf = new Uint8Array(inc.total);
+      Object.entries(inc.parts).forEach(([off, u]) => buf.set(u, +off));
+      const cid = await FS.computeCID(buf);
+      if (cid === data.cid){
+        await FS.store(buf);
+        if (state._wantCb) state._wantCb(buf);
+      }
+      delete state._incoming[data.cid];
+    }
+  });
+  l.startBroadcast();
+  state.link = l;
+  $('#meshDot').classList.add('on'); $('#meshStat').textContent = 'mesh live · '+state.did.slice(-6);
+  updateMeshUi();
+}
+
+function stopMesh(){
+  if (!state.link) return;
+  state.link.stopBroadcast();
+  for (const w of state.link.getPeers()) { try { state.link.peers.get(w.peerId)?.close(); } catch{} }
+  state.link = null; state.peers = 0;
+  $('#meshDot').classList.remove('on'); $('#meshStat').textContent = 'mesh offline';
+  updateMeshUi();
+}
+
+function updateMeshUi(){ $('#statPeers').textContent = state.peers; }
+async function updateStats(){
+  const list = await FS.list();
+  $('#statLocal').textContent = list.length;
+  $('#statPinned').textContent = list.filter(x => x.pinned).length;
+  $('#statSeen').textContent = state.seen.size + loadAttestations().length;
+}
+
+function renderMesh(){
+  const combined = new Map();
+  for (const a of loadAttestations()) combined.set(a.cid, a);
+  for (const [k,v] of state.seen) combined.set(k, v);
+  const arr = [...combined.values()].sort((a,b) => b.archivedAt - a.archivedAt);
+  if (!arr.length){ $('#meshList').innerHTML = '<div class="empty">No broadcasts yet. Start the mesh and wait, or archive something to seed.</div>'; return; }
+  $('#meshList').innerHTML = arr.slice(0, 200).map(a => `
+    <div class="item">
+      <div class="head"><div class="url">${esc(a.url)}</div><span class="tag">signed</span></div>
+      <div class="cid">${esc(a.cid)}</div>
+      <div class="meta"><span>${when(a.archivedAt)}</span><span>${esc(a.archiverDid).slice(0,20)}…</span></div>
+      <div class="actions">
+        <button class="btn small" data-view-cid="${esc(a.cid)}">Retrieve</button>
+        <button class="btn ghost small" data-pin-cid="${esc(a.cid)}">Pin</button>
+        <button class="btn ghost small" data-copy="${esc(a.cid)}">Copy</button>
+      </div>
+    </div>`).join('');
+  wireResultButtons();
+}
+
+async function renderPins(){
+  const list = await FS.list();
+  const pinned = list.filter(x => x.pinned);
+  if (!pinned.length){ $('#pinList').innerHTML = '<div class="empty">Nothing pinned yet. Pin a snapshot to keep it forever.</div>'; return; }
+  const atts = loadAttestations();
+  $('#pinList').innerHTML = pinned.map(p => {
+    const att = atts.find(a => a.cid === p.cid);
+    return `<div class="item">
+      <div class="head"><div class="url">${att ? esc(att.url) : '(no attestation)'}</div><span class="tag amber">pinned</span></div>
+      <div class="cid">${esc(p.cid)}</div>
+      <div class="meta"><span>${bytes(p.size)}</span><span>${when(p.storedAt)}</span>${att?`<span>${esc(att.archiverDid).slice(0,20)}…</span>`:''}</div>
+      <div class="actions">
+        <button class="btn small" data-view-cid="${esc(p.cid)}">View</button>
+        <button class="btn coral small" data-unpin="${esc(p.cid)}">Unpin</button>
+      </div>
+    </div>`;
+  }).join('');
+  $$('[data-unpin]').forEach(b => b.onclick = async () => { await FS.unpin(b.dataset.unpin); renderPins(); updateStats(); });
+  wireResultButtons();
+}
+
+// ---------- event wiring ----------
+$('#doFetch').onclick = async () => {
+  const url = $('#urlIn').value.trim(); if (!url) return;
+  $('#archLog').innerHTML=''; $('#archResult').innerHTML='';
+  log('archLog', 'fetching '+url);
+  try {
+    const r = await fetch(url, {mode:'cors'});
+    if (!r.ok){ log('archLog','fetch '+r.status,'err'); return; }
+    const html = await r.text();
+    log('archLog', 'received '+bytes(html.length), 'ok');
+    await archiveHtml(html, url);
+  } catch(e){
+    log('archLog', 'CORS/network blocked: '+e.message, 'err');
+    log('archLog', 'use paste mode: open the URL in another tab, copy the HTML source, paste below', 'warn');
+    $('#pasteBox').style.display='block';
+  }
+};
+$('#pasteMode').onclick = () => { $('#pasteBox').style.display = $('#pasteBox').style.display==='none'?'block':'none'; };
+$('#doPaste').onclick = async () => {
+  const html = $('#htmlIn').value; const url = $('#urlIn').value.trim();
+  if (!html) return;
+  $('#archLog').innerHTML=''; $('#archResult').innerHTML='';
+  await archiveHtml(html, url);
+};
+$('#doRetrieve').onclick = doRetrieveNow;
+$('#queryPeers').onclick = async () => {
+  const cid = $('#cidIn').value.trim(); if (!cid || !state.link) { log('retLog','start mesh first','warn'); return; }
+  const sent = state.link.broadcast({__fe:'want', cid});
+  log('retLog','queried '+sent+' peers','ok');
+};
+$('#startMesh').onclick = startMesh;
+$('#stopMesh').onclick = stopMesh;
+$('#offerBtn').onclick = () => { $('#meshBox').style.display='block'; };
+$('#acceptBtn').onclick = () => { $('#meshBox').style.display='block'; };
+$('#genOffer').onclick = async () => {
+  if (!state.link) await startMesh();
+  const { bundle } = await state.link.createOffer();
+  $('#bundleOut').style.display='block'; $('#bundleOut').textContent = bundle;
+};
+$('#acceptOffer').onclick = async () => {
+  if (!state.link) await startMesh();
+  const b = $('#bundleIn').value.trim(); if (!b) return;
+  try { const { bundle } = await state.link.acceptOffer(b); $('#bundleOut').style.display='block'; $('#bundleOut').textContent = bundle; }
+  catch(e){ $('#bundleOut').style.display='block'; $('#bundleOut').textContent = 'error: '+e.message; }
+};
+$('#acceptAnswer').onclick = async () => {
+  if (!state.link) return;
+  const b = $('#bundleIn').value.trim(); if (!b) return;
+  try { await state.link.acceptAnswer(b); $('#bundleOut').style.display='block'; $('#bundleOut').textContent = 'answer accepted'; }
+  catch(e){ $('#bundleOut').style.display='block'; $('#bundleOut').textContent = 'error: '+e.message; }
+};
+
+// ---------- boot ----------
+(async () => {
+  await initKeys();
+  showDid();
+  updateStats();
+  // SW register
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
